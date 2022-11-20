@@ -620,6 +620,9 @@ void panel_set_wm_strut(Panel *p)
 
 void _panel_set_wm_strut(LXPanel *panel)
 {
+    if (!GDK_IS_X11_DISPLAY(gdk_display_get_default()))
+        return; // FIXME: Support non-X11 systems
+
     int index;
     Display *xdisplay = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     Panel *p = panel->priv;
@@ -1607,8 +1610,12 @@ panel_start_gui(LXPanel *panel, config_setting_t *list)
     Atom state[3];
     XWMHints wmhints;
     gulong val;
-    Screen *xscreen = GDK_SCREEN_XSCREEN(gtk_widget_get_screen(GTK_WIDGET(panel)));
-    Display *xdisplay = DisplayOfScreen(xscreen);
+    Screen *xscreen;
+    Display *xdisplay;
+    if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+        xscreen = GDK_SCREEN_XSCREEN(gtk_widget_get_screen(GTK_WIDGET(panel)));
+        xdisplay = DisplayOfScreen(xscreen);
+    }
     Panel *p = panel->priv;
     GtkWidget *w = GTK_WIDGET(panel);
     config_setting_t *s;
@@ -1649,20 +1656,22 @@ panel_start_gui(LXPanel *panel, config_setting_t *list)
     if (p->round_corners)
         make_round_corners(p);
 
-    p->topxwin = GDK_WINDOW_XID(gtk_widget_get_window(w));
-    DBG("topxwin = %x\n", p->topxwin);
+    if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+        p->topxwin = GDK_WINDOW_XID(gtk_widget_get_window(w));
+        DBG("topxwin = %x\n", p->topxwin);
 
-    /* the settings that should be done before window is mapped */
-    wmhints.flags = InputHint;
-    wmhints.input = 0;
-    XSetWMHints (xdisplay, p->topxwin, &wmhints);
+        /* the settings that should be done before window is mapped */
+        wmhints.flags = InputHint;
+        wmhints.input = 0;
+        XSetWMHints (xdisplay, p->topxwin, &wmhints);
 #define WIN_HINTS_SKIP_FOCUS      (1<<0)    /* "alt-tab" skips this win */
-    val = WIN_HINTS_SKIP_FOCUS;
-    XChangeProperty(xdisplay, p->topxwin,
-          XInternAtom(xdisplay, "_WIN_HINTS", False), XA_CARDINAL, 32,
-          PropModeReplace, (unsigned char *) &val, 1);
+        val = WIN_HINTS_SKIP_FOCUS;
+        XChangeProperty(xdisplay, p->topxwin,
+              XInternAtom(xdisplay, "_WIN_HINTS", False), XA_CARDINAL, 32,
+              PropModeReplace, (unsigned char *) &val, 1);
 
-    panel_set_dock_type(p);
+        panel_set_dock_type(p);
+    }
 
     /* window mapping point */
     p->visible = TRUE;
@@ -1672,18 +1681,20 @@ panel_start_gui(LXPanel *panel, config_setting_t *list)
 
     /* the settings that should be done after window is mapped */
 
-    /* send it to running wm */
-    Xclimsgx(xscreen, p->topxwin, a_NET_WM_DESKTOP, G_MAXULONG, 0, 0, 0, 0);
-    /* and assign it ourself just for case when wm is not running */
-    val = G_MAXULONG;
-    XChangeProperty(xdisplay, p->topxwin, a_NET_WM_DESKTOP, XA_CARDINAL, 32,
-          PropModeReplace, (unsigned char *) &val, 1);
+    if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+        /* send it to running wm */
+        Xclimsgx(xscreen, p->topxwin, a_NET_WM_DESKTOP, G_MAXULONG, 0, 0, 0, 0);
+        /* and assign it ourself just for case when wm is not running */
+        val = G_MAXULONG;
+        XChangeProperty(xdisplay, p->topxwin, a_NET_WM_DESKTOP, XA_CARDINAL, 32,
+              PropModeReplace, (unsigned char *) &val, 1);
 
-    state[0] = a_NET_WM_STATE_SKIP_PAGER;
-    state[1] = a_NET_WM_STATE_SKIP_TASKBAR;
-    state[2] = a_NET_WM_STATE_STICKY;
-    XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STATE, XA_ATOM,
-          32, PropModeReplace, (unsigned char *) state, 3);
+        state[0] = a_NET_WM_STATE_SKIP_PAGER;
+        state[1] = a_NET_WM_STATE_SKIP_TASKBAR;
+        state[2] = a_NET_WM_STATE_STICKY;
+        XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STATE, XA_ATOM,
+              32, PropModeReplace, (unsigned char *) state, 3);
+    }
 
     p->initialized = TRUE;
 

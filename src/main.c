@@ -368,6 +368,9 @@ static void clipboard_clear_func(
  */
 static gboolean check_main_lock()
 {
+    if (!GDK_IS_X11_DISPLAY(gdk_display_get_default()))
+        return TRUE; // FIXME: Support non-X11 systems
+
     static const GtkTargetEntry targets[] = { { CLIPBOARD_NAME, 0, 0 } };
     gboolean retval = FALSE;
     GtkClipboard *clipboard;
@@ -483,10 +486,12 @@ int main(int argc, char *argv[], char *env[])
     textdomain ( GETTEXT_PACKAGE );
 #endif
 
-    XSetLocaleModifiers("");
-    XSetErrorHandler((XErrorHandler) panel_handle_x_error);
+    if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+        XSetLocaleModifiers("");
+        XSetErrorHandler((XErrorHandler) panel_handle_x_error);
 
-    resolve_atoms();
+        resolve_atoms();
+    }
 
     desktop_name = g_getenv("XDG_CURRENT_DESKTOP");
     is_in_lxde = desktop_name && (0 == strcmp(desktop_name, "LXDE"));

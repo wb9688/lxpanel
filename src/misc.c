@@ -635,6 +635,9 @@ get_textproperty(Window win, Atom atom)
 int
 get_net_number_of_desktops()
 {
+    if (!GDK_IS_X11_DISPLAY(gdk_display_get_default()))
+        return 0; // FIXME: Support non-X11 systems
+
     int desknum;
     gulong *data;
 
@@ -653,6 +656,9 @@ get_net_number_of_desktops()
 int
 get_net_current_desktop ()
 {
+    if (!GDK_IS_X11_DISPLAY(gdk_display_get_default()))
+        return 0; // FIXME: Support non-X11 systems
+
     int desk;
     gulong *data;
 
