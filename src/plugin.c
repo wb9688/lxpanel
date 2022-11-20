@@ -234,7 +234,11 @@ static gboolean lxpanel_plugin_button_press_event(GtkWidget *plugin, GdkEventBut
         (event->state & gtk_accelerator_get_default_mod_mask()) == 0) /* no key */
     {
         GtkMenu* popup = (GtkMenu*)lxpanel_get_plugin_menu(panel, plugin, FALSE);
+#if GTK_CHECK_VERSION(3, 22, 0)
+        gtk_menu_popup_at_pointer(popup, NULL);
+#else
         gtk_menu_popup(popup, NULL, NULL, NULL, NULL, event->button, event->time);
+#endif
         return TRUE;
     }
     return FALSE;

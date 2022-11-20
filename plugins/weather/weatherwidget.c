@@ -1226,10 +1226,14 @@ gtk_weather_run_popup_menu(GtkWeather * weather)
       gtk_widget_set_sensitive(priv->menu_data.refresh_item, TRUE);
     }
   
+#if GTK_CHECK_VERSION(3, 22, 0)
+  gtk_menu_popup_at_pointer(GTK_MENU(priv->menu_data.menu), NULL);
+#else
   gtk_menu_popup(GTK_MENU(priv->menu_data.menu), 
                  NULL, NULL, NULL, NULL, 
                  3, // right-click
                  gtk_get_current_event_time());
+#endif
   
 }
 #endif

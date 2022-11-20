@@ -378,7 +378,11 @@ static gboolean lxpanel_button_press(GtkWidget *widget, GdkEventButton *event)
     if (event->button == 3) /* right button */
     {
         GtkMenu* popup = (GtkMenu*) lxpanel_get_plugin_menu(panel, NULL, FALSE);
+#if GTK_CHECK_VERSION(3, 22, 0)
+        gtk_menu_popup_at_pointer(popup, NULL);
+#else
         gtk_menu_popup(popup, NULL, NULL, NULL, NULL, event->button, event->time);
+#endif
         return TRUE;
     }
     else if (event->button == 2) /* middle button */
