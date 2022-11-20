@@ -43,6 +43,21 @@ else
   keybinder_module=keybinder
 fi
 
+AC_ARG_ENABLE([gtk_layer_shell],
+    AS_HELP_STRING([--enable-gtk-layer-shell],
+               [enable gtk-layer-shell (default: disable)]),
+               gtk_layer_shell=$enableval, gtk_layer_shell="no")
+AM_CONDITIONAL(ENABLE_GTK_LAYER_SHELL, test x"$gtk_layer_shell" = x"yes")
+
+if test x"$gtk_layer_shell" = x"yes"; then
+    if test x"$enable_gtk3" = x"yes"; then
+        pkg_modules="$pkg_modules gtk-layer-shell-0"
+        AC_DEFINE(ENABLE_GTK_LAYER_SHELL, [1], [Enable gtk-layer-shell])
+    else
+        AC_MSG_ERROR([gtk-layer-shell is only supported with gtk-3.0])
+    fi
+fi
+
 pkg_modules="$pkg_modules \
              gio-unix-2.0 \
              gthread-2.0 \

@@ -51,6 +51,9 @@
 #include <gdk/gdkx.h>
 #include <libfm/fm-gtk.h>
 #include <cairo-xlib.h>
+#ifdef ENABLE_GTK_LAYER_SHELL
+#include <gtk-layer-shell/gtk-layer-shell.h>
+#endif
 
 #define __LXPANEL_INTERNALS__
 
@@ -620,89 +623,126 @@ void panel_set_wm_strut(Panel *p)
 
 void _panel_set_wm_strut(LXPanel *panel)
 {
-    if (!GDK_IS_X11_DISPLAY(gdk_display_get_default()))
-        return; // FIXME: Support non-X11 systems
-
-    int index;
-    Display *xdisplay = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
     Panel *p = panel->priv;
-    gulong strut_size;
-    gulong strut_lower;
-    gulong strut_upper;
 
     if (!gtk_widget_get_mapped(GTK_WIDGET(panel)))
         return;
-    /* most wm's tend to ignore struts of unmapped windows, and that's how
-     * lxpanel hides itself. so no reason to set it. */
-    if (p->autohide && p->height_when_hidden <= 0)
-        return;
 
-    /* Dispatch on edge to set up strut parameters. */
-    switch (p->edge)
-    {
-        case EDGE_LEFT:
-            index = 0;
-            strut_lower = p->ay;
-            strut_upper = p->ay + p->ah;
-            break;
-        case EDGE_RIGHT:
-            index = 1;
-            strut_lower = p->ay;
-            strut_upper = p->ay + p->ah;
-            break;
-        case EDGE_TOP:
-            index = 2;
-            strut_lower = p->ax;
-            strut_upper = p->ax + p->aw;
-            break;
-        case EDGE_BOTTOM:
-            index = 3;
-            strut_lower = p->ax;
-            strut_upper = p->ax + p->aw;
-            break;
-        default:
-            return;
-    }
+#ifdef ENABLE_GTK_LAYER_SHELL
+    if (gtk_layer_is_supported()) {
+        gtk_layer_set_exclusive_zone(GTK_WINDOW(panel), 0);
 
-    /* Set up strut value in property format. */
-    gulong desired_strut[12];
-    memset(desired_strut, 0, sizeof(desired_strut));
-    if (p->setstrut &&
-        _panel_edge_can_strut(panel, p->edge, p->monitor, &strut_size))
-    {
-        desired_strut[index] = strut_size;
-        desired_strut[4 + index * 2] = strut_lower;
-        desired_strut[5 + index * 2] = strut_upper - 1;
-    }
-    else
-    {
-        strut_size = 0;
-        strut_lower = 0;
-        strut_upper = 0;
-    }
-
-    /* If strut value changed, set the property value on the panel window.
-     * This avoids property change traffic when the panel layout is recalculated but strut geometry hasn't changed. */
-    if ((p->strut_size != strut_size) || (p->strut_lower != strut_lower) || (p->strut_upper != strut_upper) || (p->strut_edge != p->edge))
-    {
-        p->strut_size = strut_size;
-        p->strut_lower = strut_lower;
-        p->strut_upper = strut_upper;
-        p->strut_edge = p->edge;
-
-        /* If window manager supports STRUT_PARTIAL, it will ignore STRUT.
-         * Set STRUT also for window managers that do not support STRUT_PARTIAL. */
-        if (strut_size != 0)
+        switch (p->edge)
         {
-            XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STRUT_PARTIAL,
-                XA_CARDINAL, 32, PropModeReplace,  (unsigned char *) desired_strut, 12);
-            XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STRUT,
-                XA_CARDINAL, 32, PropModeReplace,  (unsigned char *) desired_strut, 4);
+            case EDGE_LEFT:
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_RIGHT, FALSE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_TOP, p->align == ALIGN_LEFT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_BOTTOM, p->align == ALIGN_RIGHT);
+                break;
+            case EDGE_RIGHT:
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_LEFT, FALSE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_TOP, p->align == ALIGN_LEFT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_BOTTOM, p->align == ALIGN_RIGHT);
+                break;
+            case EDGE_TOP:
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_LEFT, p->align == ALIGN_LEFT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_RIGHT, p->align == ALIGN_RIGHT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_BOTTOM, FALSE);
+                break;
+            case EDGE_BOTTOM:
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_LEFT, p->align == ALIGN_LEFT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_RIGHT, p->align == ALIGN_RIGHT);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_TOP, FALSE);
+                gtk_layer_set_anchor(GTK_WINDOW(panel), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
+                break;
+        }
+
+        if (p->setstrut)
+            gtk_layer_auto_exclusive_zone_enable(GTK_WINDOW(panel));
+    } else
+#endif
+    if (GDK_IS_X11_DISPLAY(gdk_display_get_default())) {
+        int index;
+        Display *xdisplay = GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
+        gulong strut_size;
+        gulong strut_lower;
+        gulong strut_upper;
+
+        /* most wm's tend to ignore struts of unmapped windows, and that's how
+         * lxpanel hides itself. so no reason to set it. */
+        if (p->autohide && p->height_when_hidden <= 0)
+            return;
+
+        /* Dispatch on edge to set up strut parameters. */
+        switch (p->edge)
+        {
+            case EDGE_LEFT:
+                index = 0;
+                strut_lower = p->ay;
+                strut_upper = p->ay + p->ah;
+                break;
+            case EDGE_RIGHT:
+                index = 1;
+                strut_lower = p->ay;
+                strut_upper = p->ay + p->ah;
+                break;
+            case EDGE_TOP:
+                index = 2;
+                strut_lower = p->ax;
+                strut_upper = p->ax + p->aw;
+                break;
+            case EDGE_BOTTOM:
+                index = 3;
+                strut_lower = p->ax;
+                strut_upper = p->ax + p->aw;
+                break;
+            default:
+                return;
+        }
+
+        /* Set up strut value in property format. */
+        gulong desired_strut[12];
+        memset(desired_strut, 0, sizeof(desired_strut));
+        if (p->setstrut &&
+            _panel_edge_can_strut(panel, p->edge, p->monitor, &strut_size))
+        {
+            desired_strut[index] = strut_size;
+            desired_strut[4 + index * 2] = strut_lower;
+            desired_strut[5 + index * 2] = strut_upper - 1;
         }
         else
         {
-            XDeleteProperty(xdisplay, p->topxwin, a_NET_WM_STRUT);
-            XDeleteProperty(xdisplay, p->topxwin, a_NET_WM_STRUT_PARTIAL);
+            strut_size = 0;
+            strut_lower = 0;
+            strut_upper = 0;
+        }
+
+        /* If strut value changed, set the property value on the panel window.
+         * This avoids property change traffic when the panel layout is recalculated but strut geometry hasn't changed. */
+        if ((p->strut_size != strut_size) || (p->strut_lower != strut_lower) || (p->strut_upper != strut_upper) || (p->strut_edge != p->edge))
+        {
+            p->strut_size = strut_size;
+            p->strut_lower = strut_lower;
+            p->strut_upper = strut_upper;
+            p->strut_edge = p->edge;
+
+            /* If window manager supports STRUT_PARTIAL, it will ignore STRUT.
+             * Set STRUT also for window managers that do not support STRUT_PARTIAL. */
+            if (strut_size != 0)
+            {
+                XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STRUT_PARTIAL,
+                    XA_CARDINAL, 32, PropModeReplace,  (unsigned char *) desired_strut, 12);
+                XChangeProperty(xdisplay, p->topxwin, a_NET_WM_STRUT,
+                    XA_CARDINAL, 32, PropModeReplace,  (unsigned char *) desired_strut, 4);
+            }
+            else
+            {
+                XDeleteProperty(xdisplay, p->topxwin, a_NET_WM_STRUT);
+                XDeleteProperty(xdisplay, p->topxwin, a_NET_WM_STRUT_PARTIAL);
+            }
         }
     }
 }
@@ -1632,6 +1672,11 @@ panel_start_gui(LXPanel *panel, config_setting_t *list)
 
     p->display = gdk_display_get_default();
     gtk_window_set_wmclass(GTK_WINDOW(panel), "panel", "lxpanel");
+
+#ifdef ENABLE_GTK_LAYER_SHELL
+    gtk_layer_init_for_window(GTK_WINDOW(panel));
+    gtk_layer_set_layer(GTK_WINDOW(panel), GTK_LAYER_SHELL_LAYER_TOP);
+#endif
 
     if (G_UNLIKELY(win_grp == NULL))
     {
